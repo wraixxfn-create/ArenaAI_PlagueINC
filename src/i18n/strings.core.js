@@ -379,8 +379,8 @@ export default {
 
   // ---- audio/credits/tutorial shell ----
   'credits.body': {
-    en: 'VECTOR ZERO is an original global contagion strategy simulation. All code, data, artwork, icons, text and audio in this project were created for it and are not derived from any commercial title.',
-    it: 'VECTOR ZERO è una simulazione strategica originale sul contagio globale. Codice, dati, grafica, icone, testi e audio sono stati creati appositamente e non derivano da alcun titolo commerciale.',
+    en: 'VECTOR ZERO is an original global contagion strategy simulation. Its gameplay, interface, text and procedural audio were created for this project, not derived from any commercial title. Geographic data is credited separately.',
+    it: 'VECTOR ZERO è una simulazione strategica originale sul contagio globale. Gameplay, interfaccia, testi e audio procedurale sono stati creati appositamente, senza derivare da alcun titolo commerciale. I dati geografici sono accreditati separatamente.',
   },
   'credits.role.design': { en: 'Systems & Game Design', it: 'Design di sistema e di gioco' },
   'credits.role.code': { en: 'Simulation Engine', it: 'Motore di simulazione' },

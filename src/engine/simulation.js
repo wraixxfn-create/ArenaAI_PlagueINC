@@ -93,6 +93,7 @@ export class Simulation {
 
     this.recomputeStats();
     this.seedStart();
+    this.updateGlobals();
     this.snapshotHistory();
   }
 

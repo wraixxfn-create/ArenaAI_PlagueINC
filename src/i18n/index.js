@@ -1,6 +1,7 @@
 // Localization runtime. Strings live in strings.*.js as { key: { en, it } }.
 // Adding a language: add its code to LANGUAGES, then add that code to every entry
 // (missing entries transparently fall back to FALLBACK).
+import intro from './strings.intro.js';
 import core from './strings.core.js';
 import content from './strings.content.js';
 import countries from './strings.countries.js';
@@ -11,7 +12,7 @@ export const LANGUAGES = [
 ];
 export const FALLBACK = 'en';
 
-const TABLE = { ...core, ...content, ...countries };
+const TABLE = { ...intro, ...core, ...content, ...countries };
 const listeners = new Set();
 let current = FALLBACK;
 

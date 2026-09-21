@@ -1,5 +1,6 @@
 import { el, clear, num, fullNum, pct, dateStr, bar, tip, climateLabel, toast, confirmDialog } from '../util.js';
 import { t, tc } from '../../i18n/index.js';
+import { introOverlay } from '../tutorial.js';
 import { WorldMap, MAP_MODES } from '../map.js';
 import { SPEEDS } from '../app.js';
 import { evolutionOverlay } from './evolution.js';
@@ -150,6 +151,7 @@ export function gameScreen(app) {
   mapWrap.appendChild(legend);
 
   const mapHint = el('div', 'map-hint');
+  mapHint.title = t('map.source');
   mapHint.appendChild(el('span', 'muted small', t('map.zoomHint')));
   const resetBtn = el('button', 'btn tiny ghost', t('map.reset'));
   resetBtn.onclick = () => { map.resetView(); app.audio.play('click'); };
@@ -547,9 +549,11 @@ export function gameScreen(app) {
 
   // ================= OVERLAYS =================
   let overlay = null;
+  let overlayCleanup = null;
   let resumeAfterOverlay = false;
   function closeOverlay() {
     if (!overlay) return;
+    overlayCleanup?.(); overlayCleanup = null;
     overlay.remove();
     overlay = null;
     if (resumeAfterOverlay) { app.setSpeed(prevSpeed); resumeAfterOverlay = false; syncSpeed(); }
@@ -557,6 +561,14 @@ export function gameScreen(app) {
   let prevSpeed = 1;
   function pauseForOverlay() {
     if (app.speedIndex > 0) { prevSpeed = app.speedIndex; resumeAfterOverlay = true; app.setSpeed(0); syncSpeed(); }
+  }
+
+  function showIntro() {
+    closeOverlay();
+    app.setSpeed(0); syncSpeed();
+    const intro = introOverlay(app, closeOverlay);
+    overlay = intro.node; overlayCleanup = intro.destroy;
+    node.appendChild(overlay); intro.mounted();
   }
 
   function openEvolution() {
@@ -614,6 +626,7 @@ export function gameScreen(app) {
   }
 
   function showEnd() {
+    overlayCleanup?.(); overlayCleanup = null;
     if (overlay) { overlay.remove(); overlay = null; }
     resumeAfterOverlay = false;
     const won = sim.finished === 'win';
@@ -650,6 +663,7 @@ export function gameScreen(app) {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
+    if (overlay && k !== 'escape') return;
     if (e.code === 'Space') { e.preventDefault(); app.togglePause(); app.audio.play(app.speed === 0 ? 'pause' : 'resume'); syncSpeed(); }
     else if (e.key >= '1' && e.key <= '4') { app.setSpeed(Number(e.key)); syncSpeed(); }
     else if (k === 'e') openEvolution();
@@ -674,7 +688,10 @@ export function gameScreen(app) {
   }
 
   let lastLogLen = sim.log.length;
-  let sideTimer = 0;
+  let hudKey = null;
+  let sideElapsed = 0;
+  let sideDirty = false;
+  let sideState = null;
   let prev = { inf: 0, hea: 0, rec: 0, ded: 0 };
 
   function objectiveProgress() {
@@ -685,7 +702,17 @@ export function gameScreen(app) {
   }
 
   function frame(dt) {
-    map.draw(dt);
+    sideElapsed += dt;
+    if (sideDirty && sideElapsed >= 500 && !overlay) {
+      renderSide(); sideDirty = false; sideElapsed = 0;
+    }
+    map.motionActive = app.speed > 0 && !overlay;
+    if (!overlay) map.draw(dt);
+    const key = [sim.day, sim.ep, app.speedIndex, sim.traits.size, sim.mutations.size, sim.log.length].join('|');
+    if (key === hudKey) return;
+    const firstFrame = hudKey === null;
+    hudKey = key;
+    syncSpeed();
     const g = sim.global;
     const setMetric = (m, val, key) => {
       m.v.textContent = num(val);
@@ -734,32 +761,31 @@ export function gameScreen(app) {
         clear(ticker);
         ticker.appendChild(el('span', `ticker-item ${last.severity}`, t(key, args)));
       }
-      if (sideTab === 'feed') renderSide();
+      if (sideTab === 'feed') sideDirty = true;
     }
-    // adaptive music tension: cure race + global severity
-    const tension = Math.max(0, Math.min(1,
-      sim.research.progress * 0.6 + (g.infectedShare || 0) * 0.25 + (g.awareness || 0) * 0.15));
-    app.audio.setTension(sim.finished ? (sim.finished === 'win' ? 0.1 : 1) : tension);
-
-    sideTimer += dt;
-    if (sideTimer > 600) { sideTimer = 0; if (sideTab !== 'feed') renderSide(); }
+    const nextSideState = [sim.day, sim.ep, sim.traits.size, sim.mutations.size].join('|');
+    if (!firstFrame && nextSideState !== sideState && sideTab !== 'feed') sideDirty = true;
+    sideState = nextSideState;
   }
 
   updateLegend();
   renderSide();
   syncSpeed();
-  if (sim.finished) setTimeout(showEnd, 120);
+  const endTimer = sim.finished ? setTimeout(showEnd, 120) : null;
+  let autosaveTimer = null;
 
   return {
     node,
     frame,
     showEnd,
+    showIntro,
     pulse: (id, kind) => map.addPulse(id, kind),
     autosaveBlip: () => {
       autosaveTag.classList.add('show');
-      setTimeout(() => autosaveTag.classList.remove('show'), 1800);
+      clearTimeout(autosaveTimer);
+      autosaveTimer = setTimeout(() => autosaveTag.classList.remove('show'), 1800);
     },
     mounted: () => { map.resize(); },
-    destroy: () => window.removeEventListener('keydown', onKey),
+    destroy: () => { window.removeEventListener('keydown', onKey); map.destroy(); overlayCleanup?.(); clearTimeout(endTimer); clearTimeout(autosaveTimer); },
   };
 }

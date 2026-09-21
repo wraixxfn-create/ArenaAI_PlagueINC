@@ -468,3 +468,30 @@ p { margin: 0 0 0.6em; line-height: 1.5; }
 .btn.full { width: 100%; margin-bottom: 10px; }
 .muted.pad { padding: 24px; }
 .reduce-motion .comp-seg { transition: none; }
+
+/* Keep expensive backdrop filters out of the live map compositor. */
+.game-screen .mode-btn, .game-screen .legend-box,
+.game-screen .objective-banner, .game-screen .overlay { backdrop-filter: none; }
+.map-top { position: absolute; top: 12px; left: 12px; right: 345px; display: flex; flex-direction: column; gap: 8px; z-index: 3; pointer-events: none; }
+.map-top > * { pointer-events: auto; }
+.map-top .mode-bar { position: static; width: 100%; max-width: 100%; }
+.jump-box { position: relative; width: 200px; }
+.jump-results { display: none; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; }
+.jump-results.open { display: flex; flex-direction: column; }
+.jump-item { padding: 8px; display: flex; justify-content: space-between; }
+.obj-label { color: var(--warn); display: block; margin-bottom: 4px; text-transform: uppercase; font-size: .8em; letter-spacing: .1em; }
+.obj-progress { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.obj-progress .bar { flex: 1; }
+.game-screen.paused .ep-box.flash { animation: none; }
+.briefing-panel { width: min(900px, 96vw); max-height: 94vh; overflow-y: auto; }
+.briefing-player { width: min(100%, 900px); margin: 12px auto; }
+.briefing-video { display: block; width: 100%; max-height: 56vh; aspect-ratio: 16 / 9; background: #081420; border: 1px solid var(--line); border-radius: 8px; }
+.briefing-transcript { margin-top: 10px; line-height: 1.6; }
+.briefing-transcript summary { cursor: pointer; color: var(--accent); }
+.briefing-transcript h3 { margin-top: 14px; }
+.briefing-remember { display: flex; align-items: center; gap: 10px; margin: 16px 0; }
+@media (max-width: 1050px) {
+  .map-top { right: 12px; }
+  .objective-banner { top: 110px; max-width: 250px; }
+  .map-hint > span { display: none; }
+}

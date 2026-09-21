@@ -46,6 +46,8 @@ window.HTMLCanvasElement.prototype.getContext = () => {
     'drawImage', 'putImageData', 'resetTransform']) ctx[m] = noop;
   return ctx;
 };
+for (const method of ['pause','load']) window.HTMLMediaElement.prototype[method] = () => {};
+window.HTMLMediaElement.prototype.play = () => Promise.resolve();
 // no WebAudio in jsdom — the engine must degrade gracefully
 window.AudioContext = undefined;
 
@@ -104,10 +106,19 @@ searchInput.value = 'Japan';
 searchInput.dispatchEvent(new window.Event('input'));
 ok($$('.country-chip').length === 1 && text().includes('Japan'), 'origin search filters');
 $$('.country-chip')[0].click();
+$('.seed-field input').value = 'ui-regression';
+$('.seed-field input').dispatchEvent(new window.Event('input'));
 byText('.btn', 'Begin Outbreak').click();
 ok(!!app.sim, 'new game created');
 ok(app.sim.startCountry === 'jpn', 'chosen origin used');
 ok(app.speedIndex === 0, 'game starts paused');
+ok(!!$('.briefing-video'), 'new games show the opening video');
+ok($('.briefing-video').getAttribute('src').endsWith('briefing-en.mp4'), 'English video selected');
+ok(app.sim.global.healthy > 0 && Number.isFinite(app.sim.global.infected), 'day-zero global totals initialized');
+$('.briefing-remember input').checked = true;
+byText('.briefing-overlay button', 'Skip briefing').click();
+ok(!$('.briefing-overlay') && app.speedIndex === 0, 'skip dismisses video but leaves game paused');
+ok(app.settings.showIntro === false, 'do-not-show preference persists');
 
 section('In-game HUD');
 ok($('.hud-top') && $('.hud-bottom') && $('.side-panel'), 'HUD regions present');
@@ -126,6 +137,16 @@ ok(app.sim.day >= 100, `simulation advanced to day ${app.sim.day}`);
 ok($('.metric.inf .metric-value').textContent !== '0' || app.sim.finished, 'infected counter updates');
 $$('.mode-btn')[4].click();
 ok($$('.mode-btn')[4].classList.contains('active'), 'map view switch works');
+
+section('Idle rendering');
+app.setSpeed(0);app.view.frame(33);
+const firstSide = $('.side-body').firstChild;
+let changes=0;
+const observer = new window.MutationObserver(records=>{changes += records.length;});
+observer.observe($('.game-screen'),{subtree:true,childList:true,characterData:true});
+for(let i=0;i<120;i++)app.view.frame(33);
+await Promise.resolve();observer.disconnect();
+ok(changes===0 && firstSide===$('.side-body').firstChild, 'unchanged paused HUD does not rebuild DOM');
 
 section('Country panel & explainability');
 app.view.node.querySelector('.tabs .tab').click();

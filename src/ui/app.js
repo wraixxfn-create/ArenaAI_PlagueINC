@@ -23,16 +23,25 @@ class App {
     this.screens = {};
     this.acc = 0;
     this.lastFrame = performance.now();
+    this.renderAcc = 0;
+    this.renderElapsed = 0;
     this.lastAutosaveDay = 0;
     this.listeners = new Set();
     setLang(this.settings.lang);
     this.applySettings();
+    document.addEventListener('visibilitychange', () => {
+      this.acc = this.renderAcc = this.renderElapsed = 0; this.lastFrame = performance.now();
+      this.audio.setHidden(document.hidden);
+    });
     onLangChange(() => this.rerender());
   }
 
   register(name, factory) { this.screens[name] = factory; }
 
   go(name, params) {
+    this.view?.destroy?.();
+    this.view = null;
+    this.acc = 0;
     this.currentScreen = name;
     this.currentParams = params;
     const root = document.getElementById('root');
@@ -84,6 +93,7 @@ class App {
       worldOverrides: cfg.worldOverrides || null,
       name: cfg.name || null,
     });
+    this.acc = 0;
     this.speedIndex = 0;      // start paused so the player can plan
     this.lastAutosaveDay = 0;
     this.seenLog = 0;
@@ -91,6 +101,7 @@ class App {
     store.saveProfile(this.profile);
     this.audio.startMusic();
     this.go('game');
+    if (this.settings.showIntro) this.view?.showIntro?.();
   }
 
   loadGame(slot) {
@@ -140,6 +151,7 @@ class App {
 
   setSpeed(i) {
     this.speedIndex = Math.max(0, Math.min(SPEEDS.length - 1, i));
+    this.acc = 0;
     this.emit('speed');
   }
   togglePause() { this.setSpeed(this.speedIndex === 0 ? 1 : 0); }
@@ -150,21 +162,39 @@ class App {
 
   // --------------------------------------------------------------- clock
   startLoop() {
+    if (this.loopStarted) return;
+    this.loopStarted = true;
     const frame = (now) => {
       const dt = Math.min(200, now - this.lastFrame);
       this.lastFrame = now;
-      if (this.sim && !this.sim.finished && this.speed > 0) {
+      if (document.hidden) {
+        this.acc = 0; this.renderAcc = this.renderElapsed = 0;
+        this.audio.setHidden(true);
+        requestAnimationFrame(frame);
+        return;
+      }
+      this.audio.setHidden(false);
+      if (this.currentScreen === 'game' && this.sim && !this.sim.finished && this.speed > 0) {
         this.acc += dt * this.speed;
         let steps = 0;
-        while (this.acc >= TICK_BASE_MS && steps < 40) {
+        while (this.acc >= TICK_BASE_MS && steps < 4) {
           this.acc -= TICK_BASE_MS;
           this.tickOnce();
           steps++;
-          if (this.sim.finished) break;
+          if (this.sim.finished || this.speed === 0) break;
         }
-        if (steps >= 40) this.acc = 0;        // never freeze the UI
+        if (steps >= 4) this.acc = 0;        // never freeze the UI
       }
-      if (this.view?.frame) this.view.frame(dt);
+      // Presentation is independent from simulation speed. At most 30 Hz (20
+      // on low quality); the map itself skips work when nothing has changed.
+      this.renderAcc += dt;
+      this.renderElapsed += dt;
+      const interval = this.settings.quality === 'low' ? 50 : 1000 / 30;
+      if (this.renderAcc >= interval) {
+        this.view?.frame?.(this.renderElapsed);
+        this.renderElapsed = 0;
+        this.renderAcc %= interval;
+      }
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);

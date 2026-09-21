@@ -2,15 +2,15 @@
 
 **An original global contagion strategy simulation.**
 
-You design a pathogen, release it into a simulated world of 64 nations, and race to
+You design a pathogen, release it into a simulated world of 63 nations, and race to
 complete your objective before humanity engineers a countermeasure. Every nation runs
 its own compartmental epidemic model driven by climate, density, healthcare, wealth and
 transport links; governments detect, panic, close borders and fund research in response
 to what you actually do.
 
-This is an original work. All code, data, world model, artwork, icons, interface,
-procedural audio, terminology, upgrade names and written content were created for this
-project. Nothing is derived from, or copied out of, any commercial title.
+The gameplay, interface, procedural audio and tutorial are original work, not copied
+from a commercial title. Earth geometry comes from public-domain Natural Earth data
+via world-atlas; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
@@ -24,15 +24,19 @@ npm start           # serves on http://localhost:3000
 python3 -m http.server 3000
 ```
 
-Open `http://localhost:3000` and pick **New Game**.
+Open `http://localhost:3000` and pick **New Game**. After setup, a skippable
+30-second gameplay briefing plays before the paused game. The video is captioned
+in English or Italian, has native playback/seek controls and a text transcript.
+Reduced-motion users start with a still poster. Replay it in **Tutorial**, or
+disable it in **Settings → Gameplay** / the opening dialog.
 
 ### Tests
 
 ```bash
 npm install                 # once — pulls jsdom (dev-only, needed for the UI tests)
-npm test                    # engine + UI suites
+npm test                    # engine, UI, geography and audio regression suites
 npm run test:sim            # engine: determinism, balance, edge cases (65 assertions)
-npm run test:ui             # UI under jsdom: screens, flows, i18n, saves (76 assertions)
+npm run test:ui             # UI under jsdom: screens, flows, i18n, saves (82 assertions)
 ```
 
 The engine tests have no dependencies at all; `tests/ui.test.mjs` needs `jsdom`,
@@ -104,15 +108,15 @@ src/
     rng.js                  deterministic mulberry32 PRNG (seeded, serializable)
     simulation.js           the whole simulation: ticks, spread, response, research
   data/                     ALL game content lives here, as plain data
-    countries.js            64 nations + land-border graph
+    countries.js            63 nations + land-border graph
     continents.js
-    landmasses.js           stylised map silhouettes + corridor list
+    earth.js                generated Natural Earth geometry (Equal Earth projection)
     pathogens.js            pathogen archetypes
     traits.js               the evolution tree
     scenarios.js            scenarios + difficulty modifiers
     events.js               event definitions (when / apply)
     achievements.js
-    landmasses.js           landmass outlines + country membership + corridors
+    landmasses.js           gameplay travel corridors + legacy silhouettes (unused)
   i18n/
     index.js                runtime: t(), setLang(), audit helpers
     strings.core.js         UI strings
@@ -122,9 +126,10 @@ src/
     advisor.js              pure strategic advisor (cure ETA, trends, hints)
   ui/
     app.js                  app shell, router, game clock, persistence glue
-    geo.js                  Voronoi territory geometry built from landmasses
-    map.js                  canvas map renderer + view modes
-    audio.js                adaptive procedural WebAudio engine (no sample files)
+    geo.js                  geometry helpers (also contains unused legacy Voronoi code)
+    map.js                  cached Canvas2D geographic map + view modes
+    audio.js                four-voice, non-rhythmic ambient score + separate SFX
+    tutorial.js             accessible opening video and transcript
     storage.js              settings, save slots, lifetime profile
     util.js                 DOM helpers, formatting, tooltips, toasts
     style.css               the entire visual identity
@@ -132,7 +137,10 @@ src/
 tests/
   sim.test.mjs              engine tests
   ui.test.mjs               UI tests (jsdom)
-tools/serve.mjs             zero-dependency static server
+assets/tutorial/            local 30-second MP4s and posters (EN / IT)
+tools/serve.mjs             zero-dependency static server with video byte ranges
+tools/build-earth.mjs       reproducible geographic data generation
+tools/build-tutorial.mjs    reproducible gameplay tutorial recording
 ```
 
 The architecture is strictly layered: `engine/` never imports from `ui/`, and `ui/` never
@@ -150,7 +158,10 @@ hardcodes a user-facing string — everything goes through `t()`.
    `island: true`.
 2. Add `'country.<id>': { en, it }` to `src/i18n/strings.countries.js`.
 
-Borders are symmetrised automatically; you only need to declare each edge once.
+Gameplay links are symmetrised automatically; you only need to declare each edge once.
+To make a new country selectable on the Earth map, also add its ISO numeric mapping
+in `tools/build-earth.mjs` and run `npm run build:earth`. Legacy x/y values no longer
+position map graphics; anchors, borders and hit regions come from geographic data.
 
 ### Add a pathogen
 
@@ -217,16 +228,20 @@ checks that a save/load round-trip continues identically for 40 further ticks.
 Billions of simulated people cost a few hundred FLOPs per tick. A full 1000-day run
 takes roughly 25 ms.
 
-**Never blocks the UI.** The clock accumulates real time and steps the simulation up to
-40 days per frame; beyond that it drops the backlog rather than stuttering.
+**Bounded work.** The clock caps catch-up at four days per frame and discards the
+backlog when hidden. Presentation is capped at 30 Hz (20 Hz in Low quality), independent
+of the simulation. Unchanged geography is cached, idle HUDs do not rebuild the DOM,
+and live sidebar updates are capped at 2 Hz. Screens dispose listeners and media.
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for measurements and architecture rationale.
 
 **Accessibility.** Colourblind palette, pattern overlays so colour is never the only
 signal, shape-coded status icons on the map, adjustable text size and UI scale, reduced
 motion, full keyboard control, focus outlines, and volume sliders.
 
-**Audio** is synthesised at runtime with WebAudio — an ambient pad whose filter, detune
-and arpeggio density track global tension, plus UI and event tones. There are no audio
-files, and nothing copyrighted.
+**Audio** is synthesised at runtime with WebAudio. The old arpeggios, heartbeat,
+bright pads and reverb have been replaced by four quiet sine voices with only gentle
+tension changes. Disable **Containment ambience** for effects only; Music and Effects
+volumes are independent. Zero music volume stops its voices; hidden tabs suspend audio.
 
 **Saving.** Five slots (slot 0 is the rolling autosave, written every 20 simulated days).
 Saves contain the full world state, RNG state, evolution tree, history, event log,
@@ -236,4 +251,33 @@ scenario, difficulty and language.
 
 ## Licence
 
-Original work. Do with it what you like.
+Original project code/content: do with it what you like. Geographic data and its
+redistribution attribution are documented in THIRD_PARTY_NOTICES.md.
+
+
+## Earth map and asset maintenance
+
+The map uses **Natural Earth 1:110m country boundaries**, including multipolygons,
+islands, Greenland and Antarctica, in the **Equal Earth** projection. Relative areas
+are preserved (unlike Mercator); shapes necessarily have projection distortion.
+The dataset is generalized, not a street-level map or a claim about disputed borders.
+177 geographic features are drawn; the existing 63 simulated nations are interactive,
+and other countries are dim neutral geography. Simulation balance and save IDs remain
+unchanged. Map scale stays uniform when the viewport is resized.
+
+Generated geography and the small tutorial media are checked in: **no asset-generation
+step, CDN, Python, ffmpeg or browser automation is required to play**.
+
+To regenerate assets:
+
+```bash
+npm install
+npm run build:earth         # d3-geo + topojson-client + world-atlas, build-time only
+npx playwright install chromium
+npm start                  # separate terminal
+npm run build:tutorial     # requires ffmpeg on PATH; writes both localized MP4s
+npm run test:browser        # real-browser playback, seek, cache, navigation & 8x tests
+```
+
+`GAME_URL`, `CHROMIUM_EXECUTABLE_PATH` and `FFMPEG` can point to an existing server,
+browser and encoder. Intermediate tutorial frames are ignored under `.arena/`.
