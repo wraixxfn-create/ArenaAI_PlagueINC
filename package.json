@@ -7,6 +7,11 @@
   "scripts": {
     "start": "node tools/serve.mjs",
     "dev": "node tools/serve.mjs",
-    "test": "node tests/sim.test.mjs"
+    "test": "node tests/sim.test.mjs && node tests/ui.test.mjs",
+    "test:sim": "node tests/sim.test.mjs",
+    "test:ui": "node tests/ui.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.0"
   }
 }

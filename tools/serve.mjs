@@ -2,8 +2,11 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+// fileURLToPath (not URL.pathname) so percent-encoded chars (e.g. spaces in the
+// folder name) are decoded and Windows drive letters resolve correctly.
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
