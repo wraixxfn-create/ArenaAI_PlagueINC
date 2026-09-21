@@ -1,0 +1,12 @@
+{
+  "name": "vector-zero",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VECTOR ZERO — an original global contagion strategy simulation.",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "dev": "node tools/serve.mjs",
+    "test": "node tests/sim.test.mjs"
+  }
+}
