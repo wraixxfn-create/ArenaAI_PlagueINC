@@ -1,8 +1,8 @@
-// Canvas world-map renderer: filled political territories, animated outbreak
-// spread, live travel particles, ocean depth, and layered atmospherics.
-import { LANDMASSES, CORRIDORS } from '../data/landmasses.js';
-import { COUNTRIES } from '../data/countries.js';
-import { buildTerritories, polyCentroid, polyBounds, insetPoly } from './geo.js';
+// Natural Earth, Equal Earth projection. Cached political layer + lightweight overlays.
+// No per-frame blur, polygon construction, or DOM work.
+import { CORRIDORS } from '../data/landmasses.js';
+import { polyBounds, pointInPoly } from './geo.js';
+import { EARTH } from '../data/earth.js';
 import { t, tc } from '../i18n/index.js';
 
 export const MAP_MODES = ['infection', 'severity', 'detection', 'healthcare', 'research', 'transport', 'climate'];
@@ -46,7 +46,9 @@ function ramp(stops, v) {
 export class WorldMap {
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    // Prefer bounded software raster work to deferred GPU path/blur stalls,
+    // especially on integrated GPUs and software-composited browser sessions.
+    this.ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     this.mode = 'infection';
     this.sim = null;
     this.selected = null;
@@ -59,39 +61,51 @@ export class WorldMap {
     this.pulses = [];
     this.particles = [];
     this.time = 0;
-    // Smoothed display values so territory colour eases instead of snapping.
-    this.display = new Map();
 
-    const geo = buildTerritories(COUNTRIES, LANDMASSES, { smooth: 2 });
-    this.territories = geo.territories;
-    this.coasts = geo.coasts;
-    this.centroids = {};
-    this.bounds = {};
-    for (const [id, poly] of Object.entries(this.territories)) {
-      this.centroids[id] = polyCentroid(poly);
-      this.bounds[id] = polyBounds(poly);
+    this.features = EARTH.countries;
+    this.territories = Object.fromEntries(this.features.filter(f => f.id).map(f => [f.id, f.rings]));
+    this.centroids = Object.fromEntries(this.features.filter(f => f.id).map(f => [f.id, f.anchor]));
+    this.bounds = Object.fromEntries(this.features.filter(f => f.id).map(f => [f.id, polyBounds(f.rings.flat())]));
+    this.featureBounds = new Map(this.features.map(f => [f, polyBounds(f.rings.flat())]));
+    this.paths = new Map();
+    if (typeof Path2D !== 'undefined') for (const f of this.features) {
+      const path = new Path2D();
+      for (const ring of f.rings) {
+        ring.forEach(([x,y],i) => i ? path.lineTo(x,y) : path.moveTo(x,y));
+        path.closePath();
+      }
+      this.paths.set(f, path);
     }
+    this.layer = document.createElement('canvas');
+    this.layerCtx = this.layer.getContext('2d', { alpha: false, willReadFrequently: true });
+    this.cleanup = [];
+    this.motionActive = false;
+    this.renderCount = 0;
     this._bind();
     this.resize();
   }
 
-  setSim(sim) { this.sim = sim; this.pulses = []; this.particles = []; this.display.clear(); }
+  setSim(sim) { this.sim = sim; this.pulses = []; this.particles = []; this.cacheKey = null; this.lastDrawKey = null; }
   setMode(m) { this.mode = m; }
 
   // ------------------------------------------------------------- interaction
   _bind() {
     const c = this.canvas;
+    const listen = (target, event, fn, options) => {
+      target.addEventListener(event, fn, options);
+      this.cleanup.push(() => target.removeEventListener(event, fn, options));
+    };
     let dragging = false, last = null, moved = 0;
-    c.addEventListener('pointerdown', (e) => {
+    listen(c, 'pointerdown', (e) => {
       dragging = true; moved = 0; last = [e.clientX, e.clientY];
       try { c.setPointerCapture(e.pointerId); } catch {}
     });
-    c.addEventListener('pointerup', (e) => {
+    listen(c, 'pointerup', (e) => {
       dragging = false;
       if (moved < 5) this.onSelect(this.pick(e)?.id ?? null);
     });
-    c.addEventListener('pointerleave', () => { this.hover = null; this.onHover(null); });
-    c.addEventListener('pointermove', (e) => {
+    listen(c, 'pointerleave', () => { this.hover = null; this.onHover(null); });
+    listen(c, 'pointermove', (e) => {
       if (dragging && last) {
         const dx = e.clientX - last[0], dy = e.clientY - last[1];
         moved += Math.abs(dx) + Math.abs(dy);
@@ -106,13 +120,20 @@ export class WorldMap {
         c.style.cursor = hit ? 'pointer' : 'grab';
       }
     });
-    c.addEventListener('wheel', (e) => {
+    listen(c, 'wheel', (e) => {
       e.preventDefault();
       const r = c.getBoundingClientRect();
       this.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
     }, { passive: false });
-    window.addEventListener('resize', () => this.resize());
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => this.resize());
+      observer.observe(c);
+      this.cleanup.push(() => observer.disconnect());
+    } else listen(window, 'resize', () => this.resize());
+    listen(c, 'pointercancel', () => { dragging = false; last = null; });
   }
+
+  destroy() { this.cleanup.forEach(fn => fn()); this.cleanup = []; this.layer.width = this.layer.height = 0; }
 
   zoomAt(mx, my, factor) {
     const before = this.toWorld(mx, my);
@@ -133,60 +154,66 @@ export class WorldMap {
     this.targetView = {
       k,
       x: -(ctr[0] - 50) * s,
-      y: -(ctr[1] - 43) * s,
+      y: -(ctr[1] - 26) * s,
     };
   }
 
   resetView() { this.targetView = { x: 0, y: 0, k: 1 }; }
   clampView() {
-    const lim = 460 * this.view.k;
+    const lim = Math.max(this.w, this.h) * this.view.k * 0.6;
     this.view.x = Math.max(-lim, Math.min(lim, this.view.x));
     this.view.y = Math.max(-lim, Math.min(lim, this.view.y));
+    this.targetView.x = this.view.x; this.targetView.y = this.view.y;
   }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, this.settings.quality === 'low' ? 1 : 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, this.settings.quality === 'low' ? 1 : this.settings.quality === 'medium' ? 1.25 : 1.5);
     const r = this.canvas.getBoundingClientRect();
-    this.w = Math.max(320, r.width); this.h = Math.max(240, r.height);
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    if (w === this.w && h === this.h && dpr === this.dpr) return;
+    this.w = w; this.h = h;
     this.canvas.width = Math.round(this.w * dpr);
     this.canvas.height = Math.round(this.h * dpr);
+    this.dpr = dpr;
+    this.layer.width = this.canvas.width; this.layer.height = this.canvas.height;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cacheKey = null; this.lastDrawKey = null;
   }
 
-  scale() { return Math.min(this.w / 100, this.h / 78); }
+  scale() { return Math.min(this.w / 100, this.h / 52); }
   toScreen(x, y) {
     const s = this.scale() * this.view.k;
-    return [x * s + this.w / 2 - 50 * s + this.view.x, y * s + this.h / 2 - 43 * s + this.view.y];
+    return [x * s + this.w / 2 - 50 * s + this.view.x, y * s + this.h / 2 - 26 * s + this.view.y];
   }
   toWorld(px, py) {
     const s = this.scale() * this.view.k;
-    return { x: (px - (this.w / 2 - 50 * s + this.view.x)) / s, y: (py - (this.h / 2 - 43 * s + this.view.y)) / s };
+    return { x: (px - (this.w / 2 - 50 * s + this.view.x)) / s, y: (py - (this.h / 2 - 26 * s + this.view.y)) / s };
   }
 
   pick(e) {
     if (!this.sim) return null;
     const r = this.canvas.getBoundingClientRect();
     const p = this.toWorld(e.clientX - r.left, e.clientY - r.top);
-    // Point-in-territory first (exact), then a radius fallback for tiny islands.
-    for (const c of this.sim.countries) {
-      const poly = this.territories[c.id];
-      if (poly && this._inPoly(p.x, p.y, poly)) return c;
+    // Even/odd rings preserve holes and disconnected islands. Neutral countries
+    // remain neutral: never assign their geography to a nearby simulated nation.
+    for (const f of this.features) {
+      const b = this.featureBounds.get(f);
+      if (p.x < b.x0 || p.x > b.x1 || p.y < b.y0 || p.y > b.y1) continue;
+      if (f.rings.reduce((inside, ring) => inside !== pointInPoly(p.x, p.y, ring), false)) {
+        return f.id ? this.sim.byId[f.id] : null;
+      }
     }
-    let best = null, bestD = 9;
+    // Screen-space target for tiny islands, independent of zoom / DPR.
+    let best = null, bestD = 64;
     for (const c of this.sim.countries) {
-      const ctr = this.centroids[c.id] || [c.x, c.y];
-      const d = (ctr[0] - p.x) ** 2 + (ctr[1] - p.y) ** 2;
+      const ctr = this.centroids[c.id];
+      if (!ctr) continue;
+      const [x,y] = this.toScreen(...ctr);
+      const d = (x - (e.clientX-r.left)) ** 2 + (y - (e.clientY-r.top)) ** 2;
       if (d < bestD) { bestD = d; best = c; }
     }
     return best;
-  }
-  _inPoly(x, y, pts) {
-    let inside = false;
-    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-      const [xi, yi] = pts[i], [xj, yj] = pts[j];
-      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-9) + xi) inside = !inside;
-    }
-    return inside;
   }
 
   // ------------------------------------------------------------------ values
@@ -203,18 +230,6 @@ export class WorldMap {
     }
   }
 
-  /** Eased value so colour transitions glide rather than pop. */
-  value(c, dt) {
-    const key = `${this.mode}:${c.id}`;
-    const target = this.rawValue(c);
-    if (!this.settings.animations || this.settings.reduceMotion) return target;
-    const cur = this.display.get(key);
-    if (cur === undefined) { this.display.set(key, target); return target; }
-    const next = cur + (target - cur) * Math.min(1, dt / 260);
-    this.display.set(key, next);
-    return next;
-  }
-
   colorFor(c, v) {
     const pal = this.settings.colorblind ? RAMPS.colorblind : RAMPS.normal;
     const stops = pal[this.mode] || pal.infection;
@@ -225,168 +240,88 @@ export class WorldMap {
 
   // ------------------------------------------------------------------ render
   draw(dt = 16) {
-    const ctx = this.ctx;
-    this.time += dt;
     const anim = this.settings.animations && !this.settings.reduceMotion;
-    // ease the camera toward its target
-    if (anim) {
-      const k = Math.min(1, dt / 180);
-      this.view.k += (this.targetView.k - this.view.k) * k;
-      this.view.x += (this.targetView.x - this.view.x) * k;
-      this.view.y += (this.targetView.y - this.view.y) * k;
-    } else {
-      this.view = { ...this.targetView };
+    const moving = Math.abs(this.view.x-this.targetView.x) + Math.abs(this.view.y-this.targetView.y) + Math.abs(this.view.k-this.targetView.k)*100 > 0.02;
+    if (moving && anim) {
+      const k = Math.min(1,dt/100);
+      for (const key of ['x','y','k']) this.view[key] += (this.targetView[key]-this.view[key])*k;
+    } else this.view = { ...this.targetView };
+    this.time += dt;
+    // A day change need not repaint geography: most early-game changes are
+    // below one display colour step. Compare rendered colours, not the clock.
+    const colors = this.sim ? this.sim.countries.map(c => {
+      const v = this.rawValue(c);
+      return this.colorFor(c,v) + ((this.settings.patterns || this.settings.colorblind) ? `:${Math.round(v*100)}` : '');
+    }).join(',') : '';
+    const key = [colors, this.mode, this.view.x, this.view.y, this.view.k,
+      this.settings.quality, this.settings.colorblind, this.settings.patterns].join('|');
+    const dirty = key !== this.cacheKey;
+    if (dirty) {
+      const ctx = this.ctx;
+      this.ctx = this.layerCtx;
+      this.drawBase();
+      this.ctx = ctx;
+      this.cacheKey = key;
+      this.renderCount++;
     }
-
-    this.drawOcean();
-    this.drawGraticule();
-    if (!this.sim) { this.drawCoasts(); return; }
-    this.drawLandShadow();
-    this.drawTerritories(dt, anim);
-    this.drawCoasts();
-    this.drawCorridors(anim);
-    if (anim && this.settings.mapEffects) this.updateParticles(dt);
-    this.drawMarkers(anim);
-    this.drawPulses(anim, dt);
-    this.drawLabels();
-  }
-
-  drawOcean() {
-    const ctx = this.ctx;
-    const g = ctx.createLinearGradient(0, 0, 0, this.h);
-    g.addColorStop(0, '#081420');
-    g.addColorStop(0.5, '#0a1a28');
-    g.addColorStop(1, '#070f18');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, this.w, this.h);
-    if (!this.settings.mapEffects) return;
-    // subtle vignette
-    const [cx, cy] = [this.w / 2, this.h / 2];
-    const vg = ctx.createRadialGradient(cx, cy, Math.min(this.w, this.h) * 0.25, cx, cy, Math.max(this.w, this.h) * 0.75);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, this.w, this.h);
-  }
-
-  drawGraticule() {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(90,150,190,0.055)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = 0; x <= 100; x += 10) {
-      const [sx, sy0] = this.toScreen(x, -4), [, sy1] = this.toScreen(x, 100);
-      ctx.moveTo(sx, sy0); ctx.lineTo(sx, sy1);
+    const drawKey = `${key}|${this.sim?.day}|${this.selected}|${this.hover}|${this.motionActive}|${anim}|${this.settings.mapEffects}`;
+    const effects = anim && this.settings.mapEffects && (this.motionActive || this.pulses.length);
+    if (!dirty && drawKey === this.lastDrawKey && !effects) return;
+    this.lastDrawKey = drawKey;
+    this.ctx.drawImage(this.layer, 0, 0, this.w, this.h);
+    for (const id of new Set([this.hover, this.selected])) {
+      const f = this.features.find(f => f.id && f.id === id);
+      if (f) this.paintFeature(f, null, id === this.selected ? '#ffd166' : '#e5f6ff', 1.7);
     }
-    for (let y = 0; y <= 100; y += 10) {
-      const [sx0, sy] = this.toScreen(-4, y), [sx1] = this.toScreen(104, y);
-      ctx.moveTo(sx0, sy); ctx.lineTo(sx1, sy);
+    if (this.sim) {
+      if (this.mode === 'transport') this.drawCorridors(false);
+      if (effects && this.motionActive) this.updateParticles(dt);
+      this.drawMarkers(false);
+      this.drawPulses(!!effects, dt);
+      this.drawLabels();
     }
-    ctx.stroke();
-    ctx.restore();
   }
 
-  tracePoly(pts, close = true) {
-    const ctx = this.ctx;
-    ctx.beginPath();
-    for (let i = 0; i < pts.length; i++) {
-      const [x, y] = this.toScreen(pts[i][0], pts[i][1]);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    if (close) ctx.closePath();
-  }
-
-  /** Soft drop shadow under every landmass, sells depth against the ocean. */
-  drawLandShadow() {
-    if (!this.settings.mapEffects) return;
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.translate(0, 3);
-    ctx.fillStyle = 'rgba(0,0,0,0.38)';
-    ctx.filter = 'blur(3px)';
-    for (const m of this.coasts) { this.tracePoly(m.pts); ctx.fill(); }
-    ctx.restore();
-  }
-
-  drawTerritories(dt, anim) {
-    const ctx = this.ctx;
-    const pat = this.settings.patterns || this.settings.colorblind;
-    for (const c of this.sim.countries) {
-      const poly = this.territories[c.id];
-      if (!poly) continue;
-      const v = this.value(c, dt);
-      const col = this.colorFor(c, v);
-      this.tracePoly(poly);
-      ctx.fillStyle = col;
-      ctx.fill();
-
-      // Infection heat bloom radiating from the country's centre of mass.
-      if (this.mode === 'infection' && c.infected > 0 && this.settings.mapEffects) {
-        const [cx, cy] = this.toScreen(...this.centroids[c.id]);
-        const b = this.bounds[c.id];
-        const rad = Math.max(b.w, b.h) * this.scale() * this.view.k * 0.85;
-        const breathe = anim ? 1 + Math.sin(this.time / 620 + c.x * 0.4) * 0.09 : 1;
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad * breathe);
-        const intensity = Math.min(0.5, 0.16 + v * 0.42);
-        g.addColorStop(0, `rgba(255,140,90,${intensity})`);
-        g.addColorStop(1, 'rgba(255,120,80,0)');
-        ctx.save(); this.tracePoly(poly); ctx.clip();
-        ctx.fillStyle = g; ctx.fillRect(0, 0, this.w, this.h);
-        ctx.restore();
+  paintFeature(f, fill, stroke, width = 0.6) {
+    const ctx = this.ctx, s = this.scale()*this.view.k;
+    const [x,y] = this.toScreen(0,0);
+    ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+    const path = this.paths.get(f);
+    if (!path) {
+      ctx.beginPath();
+      for (const ring of f.rings) {
+        ring.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+        ctx.closePath();
       }
+    }
+    if (fill) { ctx.fillStyle = fill; path ? ctx.fill(path,'evenodd') : ctx.fill('evenodd'); }
+    if (stroke) { ctx.strokeStyle=stroke; ctx.lineWidth=width/s; path ? ctx.stroke(path) : ctx.stroke(); }
+    ctx.restore();
+  }
 
-      // Accessibility hatching — density encodes magnitude without relying on hue.
-      if (pat && v > 0.06) {
-        ctx.save(); this.tracePoly(poly); ctx.clip();
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1;
-        const b = this.bounds[c.id];
-        const [x0, y0] = this.toScreen(b.x0, b.y0);
-        const [x1, y1] = this.toScreen(b.x1, b.y1);
-        const step = v > 0.66 ? 5 : v > 0.33 ? 9 : 14;
-        ctx.beginPath();
-        for (let i = -(y1 - y0); i < (x1 - x0) + (y1 - y0); i += step) {
-          ctx.moveTo(x0 + i, y0); ctx.lineTo(x0 + i + (y1 - y0), y1);
+  drawBase() {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#091724'; ctx.fillRect(0,0,this.w,this.h);
+    for (const f of this.features) {
+      const c = f.id && this.sim?.byId[f.id];
+      const v = c ? this.rawValue(c) : 0;
+      this.paintFeature(f, c ? this.colorFor(c,v) : '#14232e', '#476171', 0.55);
+      if (c && v > 0.06 && (this.settings.patterns || this.settings.colorblind)) {
+        // Pattern tiles are made once, not hundreds of clipped lines every frame.
+        if (!this.pattern) {
+          const tile = document.createElement('canvas'); tile.width=tile.height=8;
+          const tctx=tile.getContext('2d'); tctx.strokeStyle='rgba(255,255,255,.3)';
+          tctx.beginPath(); tctx.moveTo(0,8); tctx.lineTo(8,0); tctx.stroke();
+          this.pattern=ctx.createPattern(tile,'repeat');
         }
-        ctx.stroke();
-        ctx.restore();
+        const path=this.paths.get(f);
+        if (path) {
+          const s=this.scale()*this.view.k, [x,y]=this.toScreen(0,0);
+          ctx.save(); ctx.translate(x,y); ctx.scale(s,s); ctx.clip(path,'evenodd');
+          ctx.setTransform(this.dpr,0,0,this.dpr,0,0); ctx.fillStyle=this.pattern;
+          ctx.globalAlpha=0.3+v*0.7; ctx.fillRect(0,0,this.w,this.h); ctx.restore();
+        }
       }
-
-      // Inner bevel: a lighter inset edge reads as raised terrain.
-      if (this.settings.quality !== 'low') {
-        ctx.save(); this.tracePoly(poly); ctx.clip();
-        this.tracePoly(insetPoly(poly, 0.94));
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Political borders.
-      const isSel = c.id === this.selected, isHov = c.id === this.hover;
-      this.tracePoly(poly);
-      ctx.strokeStyle = isSel ? '#ffd166' : isHov ? 'rgba(255,255,255,0.85)' : 'rgba(150,200,225,0.28)';
-      ctx.lineWidth = isSel ? 2.6 : isHov ? 1.8 : 0.8;
-      ctx.stroke();
-      if (isSel) {
-        ctx.save();
-        ctx.shadowColor = 'rgba(255,209,102,0.9)';
-        ctx.shadowBlur = 16;
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-  }
-
-  drawCoasts() {
-    const ctx = this.ctx;
-    for (const m of this.coasts) {
-      this.tracePoly(m.pts);
-      if (m.decor) { ctx.fillStyle = '#15222d'; ctx.fill(); }
-      ctx.strokeStyle = 'rgba(160,215,240,0.4)';
-      ctx.lineWidth = 1.4;
-      ctx.stroke();
     }
   }
 
@@ -468,7 +403,6 @@ export class WorldMap {
   /** Status markers drawn at territory centroids. */
   drawMarkers(anim) {
     const ctx = this.ctx;
-    const s = this.scale() * this.view.k;
     for (const c of this.sim.countries) {
       const ctr = this.centroids[c.id];
       if (!ctr) continue;
@@ -490,7 +424,7 @@ export class WorldMap {
         const oy = -size * 0.55;
         ctx.save();
         ctx.shadowColor = 'rgba(0,0,0,0.9)';
-        ctx.shadowBlur = 4;
+        ctx.shadowBlur = 0;
         ctx.fillStyle = col;
         // gentle pulse on the hospital-strain warning
         if (anim && ic === '✚') ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(this.time / 380));
@@ -521,7 +455,7 @@ export class WorldMap {
       const ty = y + Math.max(9, size * 0.9);
       ctx.save();
       ctx.shadowColor = 'rgba(0,0,0,0.95)';
-      ctx.shadowBlur = 5;
+      ctx.shadowBlur = 0;
       ctx.fillStyle = focused ? '#ffffff' : 'rgba(226,240,250,0.82)';
       ctx.fillText(name, x, ty);
       ctx.restore();
@@ -560,6 +494,7 @@ export class WorldMap {
       }
     }
     this.pulses = this.pulses.filter((p) => p.t < 1500);
+    if (!this.pulses.length) this.lastDrawKey = null;
   }
 
   legend() {

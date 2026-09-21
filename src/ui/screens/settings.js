@@ -86,6 +86,7 @@ export function settingsScreen(app, params = {}) {
     SPEEDS.filter((x) => x > 0).map((x) => ({ value: x, label: `${x}×` })));
   toggle(g, 'settings.notifications', 'notifications');
   toggle(g, 'settings.autopause', 'autopause');
+  toggle(g, 'settings.showIntro', 'showIntro');
 
   // ---- Graphics ----
   const gr = section('settings.graphics');
@@ -100,6 +101,8 @@ export function settingsScreen(app, params = {}) {
 
   // ---- Audio ----
   const a = section('settings.audio');
+  toggle(a, 'settings.musicEnabled', 'musicEnabled');
+  a.appendChild(el('p', 'muted small', t('settings.musicNote')));
   slider(a, 'settings.master', 'master', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`);
   slider(a, 'settings.music', 'music', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`);
   slider(a, 'settings.sfx', 'sfx', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`);

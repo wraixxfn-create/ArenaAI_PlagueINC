@@ -2,6 +2,7 @@ import { h, el, clear, toast, confirmDialog, num } from '../util.js';
 import { t, availableLanguages, getLang } from '../../i18n/index.js';
 import * as store from '../storage.js';
 import { ACHIEVEMENTS } from '../../data/achievements.js';
+import { briefingPlayer } from '../tutorial.js';
 import { SCENARIOS } from '../../data/scenarios.js';
 
 const VERSION = '1.0.0';
@@ -139,6 +140,7 @@ export function creditsScreen(app) {
   const box = el('div', 'panel prose');
   box.appendChild(el('h3', '', t('app.title')));
   box.appendChild(el('p', '', t('credits.body')));
+  box.appendChild(el('p', '', t('credits.geography')));
   for (const role of ['design', 'code', 'art', 'audio', 'loc']) {
     const r = el('div', 'stat-row');
     r.append(el('span', 'stat-label', t(`credits.role.${role}`)), el('span', 'stat-value', t('credits.studio')));
@@ -177,6 +179,8 @@ export function tutorialScreen(app) {
   back.onclick = () => app.go(app.sim ? 'game' : 'menu');
   head.append(back, el('h2', '', t('tut.title')));
   node.appendChild(head);
+  const player = briefingPlayer();
+  node.appendChild(player.node);
   let page = 1;
   const TOTAL = 10;
   const box = el('div', 'panel tutorial-box');
@@ -209,7 +213,7 @@ export function tutorialScreen(app) {
   box.append(body, nav, skip);
   node.appendChild(box);
   render();
-  return { node };
+  return { node, destroy: player.destroy };
 }
 
 export function savesScreen(app, params = {}) {
