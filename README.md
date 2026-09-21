@@ -29,12 +29,14 @@ Open `http://localhost:3000` and pick **New Game**.
 ### Tests
 
 ```bash
-npm test                    # engine: determinism, balance, edge cases (65 assertions)
-node tests/ui.test.mjs      # UI under jsdom: screens, flows, i18n, saves (76 assertions)
+npm install                 # once — pulls jsdom (dev-only, needed for the UI tests)
+npm test                    # engine + UI suites
+npm run test:sim            # engine: determinism, balance, edge cases (65 assertions)
+npm run test:ui             # UI under jsdom: screens, flows, i18n, saves (76 assertions)
 ```
 
-`tests/ui.test.mjs` needs `jsdom` (`npm i --no-save jsdom`). The engine tests have no
-dependencies at all.
+The engine tests have no dependencies at all; `tests/ui.test.mjs` needs `jsdom`,
+which is declared as a devDependency and installed by `npm install`.
 
 ---
 
