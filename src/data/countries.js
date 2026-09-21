@@ -33,7 +33,7 @@ export const COUNTRIES = [
   { id: 'chl', c: 'sa', x: 28, y: 77, pop: 20000000, density: 0.15, heat: 0.4, humid: 0.4, health: 0.65, wealth: 0.5, urban: 0.88, air: 0.36, sea: 0.45, land: ['arg', 'per', 'bol'] },
   // ---- Europe ----
   { id: 'gbr', c: 'eu', x: 45, y: 25, pop: 68000000, density: 0.6, heat: 0.4, humid: 0.7, health: 0.85, wealth: 0.85, urban: 0.84, air: 0.88, sea: 0.62, island: true },
-  { id: 'irl', c: 'eu', x: 43, y: 25, pop: 5100000, density: 0.35, heat: 0.4, humid: 0.78, health: 0.8, wealth: 0.85, urban: 0.64, air: 0.44, sea: 0.34, island: true },
+  { id: 'irl', c: 'eu', x: 42, y: 25, pop: 5100000, density: 0.35, heat: 0.4, humid: 0.78, health: 0.8, wealth: 0.85, urban: 0.64, air: 0.44, sea: 0.34, island: true },
   { id: 'fra', c: 'eu', x: 47, y: 29, pop: 65000000, density: 0.42, heat: 0.5, humid: 0.6, health: 0.88, wealth: 0.84, urban: 0.81, air: 0.78, sea: 0.5, land: ['esp', 'deu', 'ita'] },
   { id: 'esp', c: 'eu', x: 45, y: 33, pop: 48000000, density: 0.33, heat: 0.62, humid: 0.45, health: 0.84, wealth: 0.72, urban: 0.81, air: 0.7, sea: 0.55, land: ['fra'] },
   { id: 'ita', c: 'eu', x: 50, y: 33, pop: 59000000, density: 0.55, heat: 0.6, humid: 0.55, health: 0.84, wealth: 0.75, urban: 0.71, air: 0.66, sea: 0.56, land: ['fra', 'deu'] },
@@ -75,7 +75,7 @@ export const COUNTRIES = [
   { id: 'jpn', c: 'as', x: 87, y: 32, pop: 123000000, density: 0.7, heat: 0.5, humid: 0.7, health: 0.94, wealth: 0.86, urban: 0.92, air: 0.78, sea: 0.72, island: true },
   { id: 'mmr', c: 'as', x: 76, y: 44, pop: 54000000, density: 0.25, heat: 0.88, humid: 0.85, health: 0.2, wealth: 0.12, urban: 0.32, air: 0.16, sea: 0.25, land: ['ind', 'chn', 'bgd', 'tha'] },
   { id: 'tha', c: 'as', x: 78, y: 48, pop: 72000000, density: 0.35, heat: 0.9, humid: 0.85, health: 0.6, wealth: 0.4, urban: 0.53, air: 0.66, sea: 0.5, land: ['mmr', 'vnm', 'mys'] },
-  { id: 'vnm', c: 'as', x: 80, y: 47, pop: 99000000, density: 0.62, heat: 0.88, humid: 0.85, health: 0.5, wealth: 0.3, urban: 0.39, air: 0.4, sea: 0.45, land: ['chn', 'tha'] },
+  { id: 'vnm', c: 'as', x: 78, y: 46, pop: 99000000, density: 0.62, heat: 0.88, humid: 0.85, health: 0.5, wealth: 0.3, urban: 0.39, air: 0.4, sea: 0.45, land: ['chn', 'tha'] },
   { id: 'mys', c: 'as', x: 79, y: 54, pop: 34000000, density: 0.3, heat: 0.92, humid: 0.9, health: 0.62, wealth: 0.5, urban: 0.78, air: 0.56, sea: 0.68, land: ['tha', 'idn'] },
   { id: 'idn', c: 'as', x: 83, y: 58, pop: 278000000, density: 0.45, heat: 0.93, humid: 0.92, health: 0.36, wealth: 0.28, urban: 0.58, air: 0.5, sea: 0.6, land: ['mys'] },
   { id: 'phl', c: 'as', x: 85, y: 50, pop: 117000000, density: 0.62, heat: 0.9, humid: 0.88, health: 0.34, wealth: 0.24, urban: 0.48, air: 0.42, sea: 0.5, island: true },

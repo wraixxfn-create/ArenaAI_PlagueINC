@@ -1,6 +1,7 @@
 import { el, clear, tip, signed, pct, toast } from '../util.js';
 import { t } from '../../i18n/index.js';
 import { TRAITS, TRAIT_CATEGORIES, TRAIT_BY_ID } from '../../data/traits.js';
+import { advise, affordableCount } from '../../engine/advisor.js';
 
 const PCT_STATS = new Set(['air', 'water', 'food', 'vector', 'contact', 'environ', 'infectivity',
   'stealth', 'cureResist', 'drugResist', 'recoveryResist', 'urbanAff', 'ruralAff',
@@ -64,6 +65,22 @@ export function evolutionOverlay(app, onClose) {
   panel.appendChild(head);
 
   let filter = 'all';
+  let query = '';
+  let affordableOnly = false;
+  const recommended = advise(sim).trait || null;
+
+  const toolbar = el('div', 'evo-toolbar');
+  const search = el('input', 'input tiny-input');
+  search.placeholder = t('evo.searchPlaceholder');
+  search.setAttribute('aria-label', t('evo.searchPlaceholder'));
+  search.oninput = () => { query = search.value.trim().toLowerCase(); render(); };
+  search.onkeydown = (e) => { if (e.key === 'Escape') { search.value = ''; query = ''; render(); } e.stopPropagation(); };
+  const affBtn = el('button', 'btn tiny ghost', t('evo.affordableOnly'));
+  affBtn.onclick = () => { affordableOnly = !affordableOnly; affBtn.classList.toggle('active', affordableOnly); app.audio.play('click'); render(); };
+  const affTag = el('span', 'muted small');
+  toolbar.append(search, affBtn, affTag);
+  panel.appendChild(toolbar);
+
   const tabs = el('div', 'tabs');
   const mkTab = (id, label, color) => {
     const b = el('button', `tab${filter === id ? ' active' : ''}`, label);
@@ -79,6 +96,8 @@ export function evolutionOverlay(app, onClose) {
 
   function render() {
     epBadge.textContent = `${Math.floor(sim.ep)} ${t('hud.epShort')}`;
+    const affN = affordableCount(sim);
+    affTag.textContent = affN > 0 ? `${affN} ✓` : '';
     clear(tabs);
     mkTab('all', t('evo.filterAll'));
     for (const c of TRAIT_CATEGORIES) mkTab(c.id, t(c.key), c.color);
@@ -88,7 +107,11 @@ export function evolutionOverlay(app, onClose) {
       const sec = el('section', 'evo-cat');
       sec.style.setProperty('--accent', cat.color);
       sec.appendChild(el('h3', 'evo-cat-title', t(cat.key)));
-      const nodes = TRAITS.filter((tr) => tr.cat === cat.id);
+      let nodes = TRAITS.filter((tr) => tr.cat === cat.id);
+      if (query) nodes = nodes.filter((tr) => t(`trait.${tr.id}.name`).toLowerCase().includes(query)
+        || t(`trait.${tr.id}.desc`).toLowerCase().includes(query));
+      if (affordableOnly) nodes = nodes.filter((tr) => sim.canBuy(tr.id).ok);
+      if (!nodes.length) continue;
       const cols = Math.max(...nodes.map((n) => n.x)) + 1;
       const rows = Math.max(...nodes.map((n) => n.y)) + 1;
       const grid = el('div', 'evo-grid');
@@ -99,12 +122,13 @@ export function evolutionOverlay(app, onClose) {
       svg.setAttribute('class', 'evo-links');
       grid.appendChild(svg);
       for (const tr of nodes) {
-        grid.appendChild(traitNode(app, tr, render, detail));
+        grid.appendChild(traitNode(app, tr, render, detail, recommended));
       }
       sec.appendChild(grid);
       requestAnimationFrame(() => drawLinks(svg, grid, nodes, sim));
       body.appendChild(sec);
     }
+    if (!body.children.length) body.appendChild(el('p', 'muted pad', t('evo.noResults')));
     renderDetail(app, detail, null, render);
   }
 
@@ -137,7 +161,7 @@ export function evolutionOverlay(app, onClose) {
   return back;
 }
 
-function traitNode(app, tr, rerender, detail) {
+function traitNode(app, tr, rerender, detail, recommended) {
   const sim = app.sim;
   const owned = sim.traits.has(tr.id);
   const mutated = sim.mutations.has(tr.id);
@@ -150,6 +174,12 @@ function traitNode(app, tr, rerender, detail) {
   node.style.gridRow = tr.y + 1;
   node.appendChild(el('span', 'node-icon', tr.active ? '⚡' : owned ? '✔' : mutated ? '✦' : '◆'));
   node.appendChild(el('span', 'node-name', t(`trait.${tr.id}.name`)));
+  if (recommended === tr.id && !owned) {
+    node.classList.add('recommended');
+    const star = el('span', 'node-star', '★');
+    tip(star, () => t('evo.recommended'));
+    node.appendChild(star);
+  }
   node.appendChild(el('span', 'node-cost', owned ? t('evo.owned') : mutated ? t('evo.mutated') : `${sim.traitCost(tr.id)} ${t('hud.epShort')}`));
   tip(node, () => traitTooltip(sim, tr.id));
   node.onpointerenter = () => { app.audio.play('hover'); renderDetail(app, detail, tr.id, rerender); };

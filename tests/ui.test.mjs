@@ -28,13 +28,24 @@ Object.defineProperty(global, 'localStorage', { value: fakeStorage, configurable
 Object.defineProperty(window, 'localStorage', { value: fakeStorage, configurable: true });
 
 // canvas stub (jsdom has no 2D context)
-window.HTMLCanvasElement.prototype.getContext = () => ({
-  setTransform() {}, clearRect() {}, fillRect() {}, beginPath() {}, arc() {}, fill() {},
-  stroke() {}, moveTo() {}, lineTo() {}, quadraticCurveTo() {}, closePath() {}, save() {},
-  restore() {}, clip() {}, fillText() {}, setLineDash() {},
-  createLinearGradient: () => ({ addColorStop() {} }),
-  createRadialGradient: () => ({ addColorStop() {} }),
-});
+window.HTMLCanvasElement.prototype.getContext = () => {
+  const noop = () => {};
+  const ctx = {
+    canvas: { width: 800, height: 600 },
+    createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
+    createPattern: () => null,
+    measureText: () => ({ width: 40 }),
+    getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+    isPointInPath: () => false,
+  };
+  for (const m of ['setTransform', 'transform', 'translate', 'rotate', 'scale', 'clearRect',
+    'fillRect', 'strokeRect', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'arc', 'arcTo',
+    'ellipse', 'rect', 'roundRect', 'bezierCurveTo', 'quadraticCurveTo', 'fill', 'stroke',
+    'clip', 'save', 'restore', 'fillText', 'strokeText', 'setLineDash', 'getLineDash',
+    'drawImage', 'putImageData', 'resetTransform']) ctx[m] = noop;
+  return ctx;
+};
 // no WebAudio in jsdom — the engine must degrade gracefully
 window.AudioContext = undefined;
 
@@ -132,7 +143,7 @@ byText('.btn', 'Evolve').click();
 ok(!!$('.evo-panel'), 'evolution overlay opens');
 ok($$('.evo-node').length >= 65, `all trait nodes rendered (${$$('.evo-node').length})`);
 const before = app.sim.traits.size;
-const buyable = $$('.evo-node.affordable')[0];
+const buyable = $$('.evo-node.affordable:not(.owned):not(.mutated)')[0];
 buyable.click();
 ok(app.sim.traits.size === before + 1, 'trait purchase via node click');
 ok($$('.evo-node.owned').length >= 1, 'owned state renders');

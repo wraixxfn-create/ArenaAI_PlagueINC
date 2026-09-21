@@ -295,6 +295,46 @@ export default {
   'mode.land': { en: 'land crossing', it: 'via terrestre' },
   'mode.spore': { en: 'airborne spores', it: 'spore aeree' },
 
+  // ---- playability additions ----
+  'hud.jump': { en: 'Find country', it: 'Trova paese' },
+  'hud.jumpHint': { en: 'Type to search, Enter to jump', it: 'Digita per cercare, Invio per saltare' },
+  'hud.advisor': { en: 'Advisor', it: 'Consulente' },
+  'hud.topCountries': { en: 'Hotspots', it: 'Focolai' },
+  'hud.noHotspots': { en: 'No active outbreaks.', it: 'Nessun focolaio attivo.' },
+  'hud.unaffected': { en: 'Not yet reached', it: 'Non ancora raggiunti' },
+  'hud.muted': { en: 'Muted', it: 'Muto' },
+  'hud.sound': { en: 'Sound', it: 'Audio' },
+  'hud.newEvolutions': { en: '{n} affordable', it: '{n} disponibili' },
+  'hud.focusCountry': { en: 'Show on map', it: 'Mostra sulla mappa' },
+  'hud.shortcuts': { en: 'Shortcuts', it: 'Scorciatoie' },
+  'hud.help': { en: 'Help', it: 'Aiuto' },
+  'hud.trend.rising': { en: 'rising', it: 'in aumento' },
+  'hud.trend.falling': { en: 'falling', it: 'in calo' },
+  'hud.trend.steady': { en: 'steady', it: 'stabile' },
+  'hud.perDay': { en: '{v}/day', it: '{v}/giorno' },
+  'hud.etaCure': { en: 'Countermeasure ready in ~{n} days', it: 'Contromisura pronta tra ~{n} giorni' },
+  'hud.etaNever': { en: 'Countermeasure stalled', it: 'Contromisura in stallo' },
+
+  // advisor hints
+  'tip.buyTransmission': { en: 'You have points to spend. Early transmission upgrades compound — the sooner you spread, the more points you earn.', it: 'Hai punti da spendere. I potenziamenti di trasmissione iniziali si accumulano: prima ti diffondi, più punti guadagni.' },
+  'tip.tooVisible': { en: 'Severity is high and the world is alarmed. Every new symptom now accelerates research against you.', it: 'La gravità è alta e il mondo è in allarme. Ogni nuovo sintomo accelera la ricerca contro di te.' },
+  'tip.cureRunning': { en: 'Research is advancing fast. Consider research-resistance traits, or overwhelm the wealthy nations funding it.', it: 'La ricerca avanza rapidamente. Valuta tratti di resistenza alla ricerca, o travolgi le nazioni ricche che la finanziano.' },
+  'tip.notSpreading': { en: 'Spread has stalled. Check a blocked country panel — climate or healthcare may be suppressing you.', it: 'La diffusione è ferma. Controlla il pannello di un paese bloccato: clima o sanità potrebbero frenarti.' },
+  'tip.coldCountries': { en: 'Cold nations are resisting. Cryo tolerance would open them up.', it: 'Le nazioni fredde resistono. La tolleranza criogenica le aprirebbe.' },
+  'tip.hotCountries': { en: 'Hot nations are resisting. Thermal tolerance would open them up.', it: 'Le nazioni calde resistono. La tolleranza termica le aprirebbe.' },
+  'tip.islandsLeft': { en: 'Only isolated territories remain. Air and sea route upgrades reach them best.', it: 'Restano solo territori isolati. I potenziamenti delle rotte aeree e marittime li raggiungono meglio.' },
+  'tip.goLethal': { en: 'The world is saturated. It is time to evolve lethal effects.', it: 'Il mondo è saturo. È il momento di evolvere effetti letali.' },
+  'tip.bordersClosing': { en: 'Borders are closing. Logistics Gridlock or stronger travel traits will keep routes open.', it: 'Le frontiere si stanno chiudendo. Paralisi logistica o tratti di viaggio più forti terranno aperte le rotte.' },
+  'tip.undetected': { en: 'Still undetected. Build transmission freely while nobody is looking.', it: 'Ancora non rilevato. Potenzia la trasmissione liberamente finché nessuno ti cerca.' },
+  'tip.allGood': { en: 'The outbreak is progressing well. Keep watching the countermeasure gauge.', it: 'L\u2019epidemia procede bene. Continua a sorvegliare l\u2019indicatore della contromisura.' },
+
+  // evolution UI additions
+  'evo.searchPlaceholder': { en: 'Search evolutions…', it: 'Cerca evoluzioni…' },
+  'evo.affordableOnly': { en: 'Affordable only', it: 'Solo disponibili' },
+  'evo.noResults': { en: 'No evolutions match.', it: 'Nessuna evoluzione corrisponde.' },
+  'evo.recommended': { en: 'Recommended', it: 'Consigliato' },
+  'evo.totalOwned': { en: '{n} evolved', it: '{n} evolute' },
+
   // ---- continents ----
   'continent.na': { en: 'North America', it: 'America Settentrionale' },
   'continent.sa': { en: 'South America', it: 'America Meridionale' },

@@ -110,15 +110,19 @@ src/
     scenarios.js            scenarios + difficulty modifiers
     events.js               event definitions (when / apply)
     achievements.js
+    landmasses.js           landmass outlines + country membership + corridors
   i18n/
     index.js                runtime: t(), setLang(), audit helpers
     strings.core.js         UI strings
     strings.content.js      pathogens, traits, scenarios, events, tutorial
     strings.countries.js    country names
+  engine/
+    advisor.js              pure strategic advisor (cure ETA, trends, hints)
   ui/
     app.js                  app shell, router, game clock, persistence glue
+    geo.js                  Voronoi territory geometry built from landmasses
     map.js                  canvas map renderer + view modes
-    audio.js                procedural WebAudio engine (no sample files)
+    audio.js                adaptive procedural WebAudio engine (no sample files)
     storage.js              settings, save slots, lifetime profile
     util.js                 DOM helpers, formatting, tooltips, toasts
     style.css               the entire visual identity
