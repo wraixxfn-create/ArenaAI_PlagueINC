@@ -239,6 +239,12 @@ p { margin: 0 0 0.6em; line-height: 1.5; }
 .game-main { flex: 1; display: flex; min-height: 0; }
 .map-wrap { flex: 1; position: relative; min-width: 0; }
 .map-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+/* Static vignette: depth for the map at compositor cost only — no z-index so
+   it stays under the mode bar, legend and hover card, and never blocks input. */
+.map-wrap::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(125% 108% at 50% 46%, transparent 52%, rgba(3, 8, 14, 0.5) 100%);
+}
 .mode-bar { position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; flex-wrap: wrap; max-width: 70%; }
 .mode-btn {
   background: rgba(10, 20, 30, 0.8); border: 1px solid var(--line); border-radius: 7px;

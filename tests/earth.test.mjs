@@ -22,4 +22,6 @@ assert.ok(ratio>3.3 && ratio<3.9,`equal-area Australia / Greenland = ${ratio}`);
 for(const f of EARTH.countries)for(const r of f.rings)for(const [x,y] of r)assert.ok(Number.isFinite(x+y) && x>=0 && x<=100 && y>=0 && y<=52);
 assert.ok(EARTH.countries.find(f=>f.id==='idn').rings.length>5,'archipelago preserves separate islands');
 assert.ok(EARTH.countries.find(f=>f.id==='rus').rings.length>1,'dateline geometry is split');
-console.log('Earth geometry passed: 177 features, all simulated IDs, geographic hits, neutral land, ocean, area ratios, islands and dateline.');
+assert.ok(Array.isArray(EARTH.graticule) && EARTH.graticule.length>=40,'pre-projected graticule ships with the map');
+for(const line of EARTH.graticule){assert.ok(line.length>=2,'graticule line has points');for(const [x,y] of line)assert.ok(Number.isFinite(x+y)&&x>=0&&x<=100&&y>=0&&y<=52,'graticule within projected bounds');}
+console.log('Earth geometry passed: 177 features, all simulated IDs, geographic hits, neutral land, ocean, area ratios, islands, dateline and graticule.');

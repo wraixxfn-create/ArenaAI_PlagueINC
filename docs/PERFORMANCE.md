@@ -20,9 +20,25 @@ change. Markers, selection, labels and bounded travel effects compose on top. Wi
 no state change or animation, the canvas is not repainted. Hit testing uses bounds
 before ring containment, including holes and antimeridian-split islands.
 
-No canvas blurs, bevel construction, full-screen radial gradients or live map backdrop
-filters remain. Opaque CPU-oriented Canvas2D contexts avoid deferred path raster stalls
-in software-composited sessions; no additional runtime library or GPU API is needed.
+The cached base layer is a composed cartographic scene: a vertical ocean gradient, a
+pre-projected 10° graticule and globe rim (both shipped in `earth.js`, one batched path
+each), continental-shelf halos (wide faint strokes that only survive along coastlines),
+and cased borders (dark casing under a hairline) instead of flat single strokes. Shelf
+and graticule are skipped at Low quality.
+
+The transmission layer composites over the cache while the sim runs: additive heat
+bloom and hot cores scaled by prevalence, dash-crawled flow arcs on open corridors,
+comet travellers with fading tails (amber = air, cyan = sea), and one-shot transmission
+beams for every new-country infection — a comet riding the arc from the source nation,
+flashing on impact, tinted by travel mode. Every glow is a **pre-rendered radial
+sprite** blitted with `globalCompositeOperation = 'lighter'`: no per-frame gradients,
+no canvas blur, no shadow passes. When paused (or with Map effects off) the layer
+freezes or disappears and the cache resumes skipping unchanged frames; beams and
+pulses still animate to completion after an autopause so events stay readable.
+
+No canvas blurs, bevel construction, live full-screen radial gradients or live map
+backdrop filters remain — the only radial gradients are baked into tiny sprites once,
+and the map vignette is a static CSS overlay paid by the compositor, not the frame loop.
 DPR is capped at 1 / 1.25 / 1.5 for Low / Medium / High. Presentation is capped at
 20 / 30 / 30 Hz independently of simulation speed. Sidebar refreshes are at most 2 Hz;
 HUD changes are keyed to game state. Background tabs and non-game screens do not tick.
@@ -44,6 +60,11 @@ nodes; UI/event sounds obey only the SFX bus. Visibility changes suspend the con
 - Real-browser tests exercise an **active** 8× run (not a finished-game overlay),
   navigation eight times, keyboard controls, video decode/seeking, mobile skip,
   both localizations, reduced motion and video-error fallback.
+- Headless CPU draw timings (node + `@napi-rs/canvas` software raster, 1500 × 820,
+  day-103 peak-pandemic state, not a browser): an **active** presentation frame with
+  the transmission layer costs a mean of **2.9 ms** (p95 3.4 ms) against **2.0 ms**
+  (p95 2.4 ms) before it — far inside the 33 ms 30 Hz budget; **paused unchanged**
+  draws stay at ~0.02 ms in both builds, i.e. the repaint cache still skips everything.
 - `npm test` covers deterministic saves/balance, geography point hits, relative area,
   islands/dateline geometry and audio node lifecycle in addition to UI flows.
 

@@ -127,7 +127,7 @@ src/
   ui/
     app.js                  app shell, router, game clock, persistence glue
     geo.js                  geometry helpers (also contains unused legacy Voronoi code)
-    map.js                  cached Canvas2D geographic map + view modes
+    map.js                  cached Canvas2D map, view modes + transmission FX
     audio.js                four-voice, non-rhythmic ambient score + separate SFX
     tutorial.js             accessible opening video and transcript
     storage.js              settings, save slots, lifetime profile
@@ -227,6 +227,15 @@ checks that a save/load round-trip continues identically for 40 further ticks.
 **Aggregate, not agent-based.** Each country holds four float compartments (S/I/R/D).
 Billions of simulated people cost a few hundred FLOPs per tick. A full 1000-day run
 takes roughly 25 ms.
+
+**Living map.** The world map reads like the pandemic it reports: a graticule and globe
+rim over a graded ocean, continental-shelf glow along coastlines, an additive heat bloom
+over infected nations, animated flow arcs and comet travellers on open air/sea routes,
+and — the moment a new country falls — a transmission beam that rides the arc from the
+source nation and flashes on impact, coloured by travel mode (air / sea / land / spore).
+All glows are pre-rendered sprites blitted additively on top of the cached base layer, so
+the effect stays cheap; **Settings → Graphics → Map effects** (and Low quality) turn the
+animated layer off entirely.
 
 **Bounded work.** The clock caps catch-up at four days per frame and discards the
 backlog when hidden. Presentation is capped at 30 Hz (20 Hz in Low quality), independent

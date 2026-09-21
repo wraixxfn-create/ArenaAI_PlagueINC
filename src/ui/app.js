@@ -209,7 +209,8 @@ class App {
       const entry = sim.log[i];
       if (entry.key === 'log.newCountry') {
         this.audio.play('newCountry');
-        this.view?.pulse?.(entry.args.country, 'infect');
+        // from/mode let the map draw the actual transmission beam (air/sea/land/spore)
+        this.view?.pulse?.(entry.args.country, 'infect', entry.args.from, entry.args.mode);
       } else if (entry.key === 'log.detected') {
         this.audio.play('alert');
         this.view?.pulse?.(entry.args.country, 'detect');

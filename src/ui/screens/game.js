@@ -779,7 +779,7 @@ export function gameScreen(app) {
     frame,
     showEnd,
     showIntro,
-    pulse: (id, kind) => map.addPulse(id, kind),
+    pulse: (id, kind, from, mode) => map.addPulse(id, kind, from, mode),
     autosaveBlip: () => {
       autosaveTag.classList.add('show');
       clearTimeout(autosaveTimer);
